@@ -562,7 +562,7 @@ assocTestSeqWindow <- function(seqData,
 		if(length(rho) > 1){ param[["test"]] <- "SKAT-O" }
 		# check pval.method
 		if(!(pval.method %in% c("kuonen","davies","liu"))){ stop("pval.method must be one of 'kuonen', 'davies', or 'liu'")}
-		if(pval.method == "kuonen") requireNamespace("survey")
+		if(pval.method == "kuonen") requireNamespace("bigQF")
 		if(pval.method == "davies" | pval.method == "liu") requireNamespace("CompQuadForm")
 		param[["rho"]] <- rho
 		param[["pval.method"]] <- pval.method
@@ -759,7 +759,7 @@ assocTestSeqWindow <- function(seqData,
 
 		}else{
 			if(pval.method == "kuonen"){
-				pval <- survey:::saddle(x = Q, lambda = lambda)
+				pval <- bigQF:::saddle(x = Q, lambda = lambda)
 				err <- ifelse(is.na(pval), 1, 0)
 
 			}else if(pval.method == "davies"){
