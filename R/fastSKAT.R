@@ -38,6 +38,7 @@ fitNullfamSKAT <- function(scanData,
     f <- bigQF::famSKAT(geno.adj, model$lmekin, model$covMatList, weights=.weightFunction(weight.beta))
     Q <- f$Q()
     meth <- if (pval.method == "kuonen") "saddlepoint" else "integration"
+    neig <- min(c(neig, dim(geno.adj)))
     p <- bigQF::pQF(Q, f, neig=neig, convolution.method=meth)
     out <- c("Q_0"=Q, "pval_0"=p)
     return(out)
