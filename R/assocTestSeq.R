@@ -9,6 +9,7 @@ assocTestSeq <- function(seqData,
                          burden.test = "Score",
                          rho = 0,
                          pval.method = "kuonen",
+                         fastSKAT.neig = 100,
                          verbose = TRUE){
 
 	# save the filter
@@ -48,7 +49,8 @@ assocTestSeq <- function(seqData,
 
 	# set up main results matrix
 	nv <- c("n.site", "n.sample.alt")
-        nv <- .outputColumns(nv, AF.range, weight.beta, weight.user, test, burden.test, rho, verbose)
+        nv <- .outputColumns(nv, AF.range = AF.range, weight.beta = weight.beta, weight.user = weight.user,
+                             test = test, burden.test = burden.test, rho = rho, verbose=verbose)
 
 	# determine the number of variant blocks
 	nblocks <- length(aggVarList)
@@ -171,7 +173,9 @@ assocTestSeq <- function(seqData,
 			}else{
 				testout <- .runSKATTest(scores = U, geno.adj = geno, weights = weights, rho = rho, pval.method = pval.method, optimal = TRUE)
 			}
-		}
+		}else if(test == "fastSKAT"){
+                       testout <- .runFastSKATTest(model = nullModObj, geno.adj = geno, weight.beta = weight.beta, pval.method = pval.method, neig = fastSKAT.neig)
+                }
 
 		# update main results
 		for(val in names(testout)){ resMain[b,val] <- testout[val] }
@@ -214,6 +218,7 @@ assocTestSeqWindow <- function(seqData,
                                burden.test = "Score",
                                rho = 0,
                                pval.method = "kuonen",
+                               fastSKAT.neig = 100,
                                verbose = TRUE){
 
 	# save the filter
@@ -268,7 +273,8 @@ assocTestSeqWindow <- function(seqData,
 
 	# set up main results matrix
 	nv <- c("chr", "window.start", "window.stop", "n.site", "dup")
-        nv <- .outputColumns(nv, AF.range, weight.beta, weight.user, test, burden.test, rho, verbose)
+        nv <- .outputColumns(nv, AF.range = AF.range, weight.beta = weight.beta, weight.user = weight.user,
+                             test = test, burden.test = burden.test, rho = rho, verbose=verbose)
 	resMain <- matrix(NA, nrow = 0, ncol = length(nv), dimnames = list(NULL,nv))
 
 	# set up results for variants
@@ -294,10 +300,15 @@ assocTestSeqWindow <- function(seqData,
 		variantPos <- seqGetData(seqData, "position")
 
 		# idenfity windows
-		window.start <- seq(from = (ceiling(variantPos[1]/(window.shift*1000))-1)*window.shift*1000 + 1,
-							to = tail(variantPos,1) - window.size*1000 + window.shift*1000,
-							by = window.shift*1000)
-		window.stop <- window.start + window.size*1000 - 1
+                if (tail(variantPos,1) - variantPos[1] >  window.size*1000) {
+                    window.start <- seq(from = (ceiling(variantPos[1]/(window.shift*1000))-1)*window.shift*1000 + 1,
+                                        to = tail(variantPos,1) - window.size*1000 + window.shift*1000,
+                                        by = window.shift*1000)
+                    window.stop <- window.start + window.size*1000 - 1
+                } else {
+                    window.start <- variantPos[1]
+                    window.stop <- tail(variantPos,1)
+                }
 		# determine the number of variant windows
 		nblocks <- length(window.start)
 
@@ -420,17 +431,17 @@ assocTestSeqWindow <- function(seqData,
 						burden <- burden + colSums(t(geno.add)*weights.add)
 						# add genotypes of variants to add
 						geno <- cbind(geno, geno.add)
-						# add weights of variants to add
-						weights <- c(weights, weights.add)
-
 					}else if(test == "SKAT"){
 						# add scores of variants to add
 						U <- c(U, as.vector(crossprod(geno.add, proj$resid)))
 						# add genotypes of variants to add
 						geno <- cbind(geno, crossprod(proj$Mt, geno.add))
-						# add weights of variants to add
-						weights <- c(weights, weights.add)
-					}
+					}else if(test == "fastSKAT"){
+						# add genotypes of variants to add
+						geno <- cbind(geno, geno.add)
+                                        }
+					# add weights of variants to add
+					weights <- c(weights, weights.add)
 
 					testID <- c(testID, variant.include$index[variant.include$value %in% variantRes[include,"variantID"]])
 				}
@@ -452,7 +463,9 @@ assocTestSeqWindow <- function(seqData,
 							}else{
 								testout <- .runSKATTest(scores = U, geno.adj = geno, weights = weights, rho = rho, pval.method = pval.method, optimal = TRUE)
 							}
-						}
+						}else if(test == "fastSKAT"){
+                                                        testout <- .runFastSKATTest(model = nullModObj, geno.adj = geno, weight.beta = weight.beta, pval.method = pval.method, neig = fastSKAT.neig)
+                                                }
 
 					}else{
 						resChr[count,"dup"] <- 1
@@ -556,6 +569,11 @@ assocTestSeqWindow <- function(seqData,
 	}
         if(test == "fastSKAT"){
                 requireNamespace("bigQF")
+                if(!is.null(weight.user)) { stop("User-specified weights cannot be used for fastSKAT. Set weight.beta instead.") }
+                if(length(rho) > 1 | rho > 0) { stop("Set rho=0 for fastSKAT") }
+		if(!(pval.method %in% c("kuonen","davies"))){ stop("pval.method must be one of 'kuonen' or 'davies'") }
+                param[["rho"]] <- 0
+		param[["pval.method"]] <- pval.method
         }
 	
 	return(param)	
@@ -601,7 +619,12 @@ assocTestSeqWindow <- function(seqData,
 				}
 			}
 		}		
-	}
+	}else if(test == "fastSKAT"){
+		nv <- append(nv, c(paste("Q",rho,sep="_"), paste("pval",rho,sep="_")))
+		if(verbose){
+			message("Performing fast SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = ", rho)
+                }
+        }
 
         return(nv)
 }

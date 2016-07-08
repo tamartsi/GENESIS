@@ -282,9 +282,23 @@ test_famSKAT <- function(){
     weights <- GENESIS:::.weightFunction(c(1,25))(freq)
     res0 <- GENESIS:::.runSKATTest(scores, g, weights, rho=0, pval.method="kuonen", optimal=FALSE)
     
-    ## agg <- list(data.frame(variant.id=as.integer(colnames(g)), allele.index=1))
-    ## nullmod <- .testNullModel(seqData)
-    ## assoc <- assocTestSeq(seqData, nullmod, agg, test="SKAT")
+    seqClose(seqData)
+}
 
+test_fastSKAT <- function(){
+    seqData <- .testObject()
+    grm <- .testGRM(seqData)
+    nullmod <- fitNullfamSKAT(sampleData(seqData), outcome="outcome", covars="sex", covMatList=grm)
+    agg <- list(data.frame(variant.id=seqGetData(seqData, "variant.id"), allele.index=1))
+    assoc <- assocTestSeq(seqData, nullmod, agg, test="fastSKAT", fastSKAT.neig=10)
+    
+    ## compare to regular SKAT
+    nullmod0 <- .testNullModel(seqData)
+    assoc0 <- assocTestSeq(seqData, nullmod0, agg, test="SKAT")
+
+    ## window
+    assoc <- assocTestSeqWindow(seqData, nullmod, test="fastSKAT", window.size=100000, window.shift=50000, fastSKAT.neig=3)
+    assoc0 <- assocTestSeqWindow(seqData, nullmod0, test="SKAT", window.size=100000, window.shift=50000)
+       
     seqClose(seqData)
 }
