@@ -1,15 +1,15 @@
-assocTestSeq <- function(	seqData,
-							nullModObj,
-							aggVarList,
-							AF.sample = NULL,
-							AF.range = c(0,1),
-							weight.beta = c(0.5,0.5),
-							weight.user = NULL,
-							test = "Burden",
-							burden.test = "Score",
-							rho = 0,
-							pval.method = "kuonen",
-							verbose = TRUE){
+assocTestSeq <- function(seqData,
+                         nullModObj,
+                         aggVarList,
+                         AF.sample = NULL,
+                         AF.range = c(0,1),
+                         weight.beta = c(0.5,0.5),
+                         weight.user = NULL,
+                         test = "Burden",
+                         burden.test = "Score",
+                         rho = 0,
+                         pval.method = "kuonen",
+                         verbose = TRUE){
 
 	# save the filter
 	seqFilt.original <- seqGetFilter(seqData)
@@ -18,8 +18,8 @@ assocTestSeq <- function(	seqData,
 
 	# check the parameters
 	param <- .paramChecks(seqData = seqData, AF.range = AF.range, weight.beta = weight.beta, weight.user = weight.user, 
-							test = test, burden.test = burden.test, family = nullModObj$family$family, 
-							mixedmodel = nullModObj$family$mixedmodel, rho = rho, pval.method = pval.method)
+                              test = test, burden.test = burden.test, family = nullModObj$family$family, 
+                              mixedmodel = nullModObj$family$mixedmodel, rho = rho, pval.method = pval.method)
 
 	# set up output
 	out <- list()
@@ -200,21 +200,21 @@ assocTestSeq <- function(	seqData,
 
 
 
-assocTestSeqWindow <- function(	seqData,
-								nullModObj,
-								variant.include = NULL,
-								chromosome = NULL,
-								window.size = 50,
-								window.shift = 20,
-								AF.sample = NULL,
-								AF.range = c(0,1),
-								weight.beta = c(0.5, 0.5),
-								weight.user = NULL,
-								test = "Burden",
-								burden.test = "Score",
-								rho = 0,
-								pval.method = "kuonen",
-								verbose = TRUE){
+assocTestSeqWindow <- function(seqData,
+                               nullModObj,
+                               variant.include = NULL,
+                               chromosome = NULL,
+                               window.size = 50,
+                               window.shift = 20,
+                               AF.sample = NULL,
+                               AF.range = c(0,1),
+                               weight.beta = c(0.5, 0.5),
+                               weight.user = NULL,
+                               test = "Burden",
+                               burden.test = "Score",
+                               rho = 0,
+                               pval.method = "kuonen",
+                               verbose = TRUE){
 
 	# save the filter
 	seqFilt.original <- seqGetFilter(seqData)
@@ -223,8 +223,8 @@ assocTestSeqWindow <- function(	seqData,
 
 	# check the parameters
 	param <- .paramChecks(seqData = seqData, AF.range = AF.range, weight.beta = weight.beta, weight.user = weight.user, 
-							test = test, burden.test = burden.test, family = nullModObj$family$family, 
-							mixedmodel = nullModObj$family$mixedmodel, rho = rho, pval.method = pval.method)
+                              test = test, burden.test = burden.test, family = nullModObj$family$family, 
+                              mixedmodel = nullModObj$family$mixedmodel, rho = rho, pval.method = pval.method)
 
 	# set up output
 	out <- list()
@@ -835,8 +835,8 @@ skatO_qchisqsum <- function(p, lambdas){
     	d <- s1*a^3 - a^2
     	l <- a^2 - 2*d
   	}else{ # s1^2 <= s2
-    	l <- 1/s2 # in liu et al, this is l=1/s1^2; matches kurtosis instead of skewness to improve tail prob estimates
-    }  	
+            l <- 1/s2 # in liu et al, this is l=1/s1^2; matches kurtosis instead of skewness to improve tail prob estimates
+        }  	
   
   	qmin <- qchisq(1-p, df=l)
   	pval <- (qmin - l)/sqrt(2*l) * sqrt(2*sum.lambda.sq) + mu
@@ -848,22 +848,22 @@ skatO_qchisqsum <- function(p, lambdas){
 ## function to integrate; the first term of the optimal integrand
 # it's a non-central sum of weighted chi-squares
 integrateFxn <- function(x, qmin, otherParams, tau, rho){
-  n.r <- length(rho)
-  n.x <- length(x)
-  
-  t1 <- tau %x% t(x)
-  tmp <- (qmin - t1)/(1-rho)
-  minval <- apply(tmp,2,min)
+    n.r <- length(rho)
+    n.x <- length(x)
+    
+    t1 <- tau %x% t(x)
+    tmp <- (qmin - t1)/(1-rho)
+    minval <- apply(tmp,2,min)
 
-  degf <- otherParams["degf"]
-  mu <- otherParams["mu"]
-  varia <- otherParams["varia"]
+    degf <- otherParams["degf"]
+    mu <- otherParams["mu"]
+    varia <- otherParams["varia"]
 
-  temp.q<-(minval - mu)/sqrt(varia)*sqrt(2*degf) + degf
+    temp.q<-(minval - mu)/sqrt(varia)*sqrt(2*degf) + degf
 
-  re<-pchisq(temp.q ,df=degf) * dchisq(x,df=1)
+    re<-pchisq(temp.q ,df=degf) * dchisq(x,df=1)
 
-  return(re)
+    return(re)
 }
 
 
