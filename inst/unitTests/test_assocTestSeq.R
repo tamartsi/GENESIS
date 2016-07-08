@@ -3,6 +3,8 @@ library(Biobase)
 library(SNPRelate)
 library(logistf)
 library(gdsfmt)
+library(coxme)
+library(bigQF)
 
 .testObject <- function(){
     showfile.gds(closeall=TRUE, verbose=FALSE)
@@ -30,7 +32,7 @@ library(gdsfmt)
     kinship <- .testKing(seqData)
     mypcair <- pcair(seqData, kinMat=kinship, divMat=kinship, verbose=FALSE, ...)
     mypcrel <- pcrelate(seqData, pcMat=mypcair$vectors[,1:2], training.set=mypcair$unrels, verbose=FALSE, ...)
-    pcrelateMakeGRM(mypcrel)
+    pcrelateMakeGRM(mypcrel, scaleKin=1)
 }
 
 .testNullModel <- function(seqData, type="mixed", binary=FALSE, ...){
@@ -166,7 +168,7 @@ test_burden_firth <- function(){
 
 test_monomorphs <- function(){
     seqData <- .testObject()
-    nullmod <- fitNullReg(sampleData(seqData), outcome="outcome")
+    nullmod <- .testNullModel(seqData, type="reg")
     
     ## check that function works when list of supplied variants includes monomorphs
     af <- seqAlleleFreq(seqData)
@@ -201,7 +203,7 @@ test_sexchrom <- function(){
     pedigree$outcome <- rnorm(nrow(pedigree))
     
     seqData <- SeqVarData(gds.seq, sampleData=AnnotatedDataFrame(pedigree))
-    nullmod <- fitNullReg(sampleData(seqData), outcome="outcome")
+    nullmod <- .testNullModel(seqData, type="reg")
     
     agg <- list(data.frame(variant.id=1:10, allele.index=1),
                 data.frame(variant.id=11:20, allele.index=1))
@@ -219,7 +221,7 @@ test_sexchrom <- function(){
 
 test_indexNotValue <- function(){
     seqData <- .testObject()
-    nullmod <- fitNullReg(sampleData(seqData), outcome="outcome")
+    nullmod <- .testNullModel(seqData, type="reg")
     assoc <- assocTestSeqWindow(seqData, nullmod, window.size=1000, window.shift=500)
 
     # make new object with different variant.id
@@ -242,4 +244,47 @@ test_indexNotValue <- function(){
     
     seqClose(seqData)
     unlink(tmpfile)
+}
+
+
+test_famSKAT_null <- function(){
+    seqData <- .testObject()
+    grm <- .testGRM(seqData)
+    dat <- pData(sampleData(seqData))
+    dat$sex <- unname(c(M=1, F=2)[dat$sex])
+    names(dat)[names(dat) == "sample.id"] <- "id" # famSKAT only works if random effect is called 'id'
+    mod <- coxme::lmekin(outcome ~ sex + (1|id), data=dat, varlist=grm*2,
+                         x=TRUE, y=TRUE, method="REML")
+
+    nullmod <- fitNullfamSKAT(sampleData(seqData), outcome="outcome", covars="sex", covMatList=grm)
+
+    checkEquals(abs(mod$coefficients$fixed["sex"]), abs(nullmod$lmekin$coefficients$fixed["sexM"]), checkNames=FALSE)
+    checkEquals(mod$coefficients$random, nullmod$lmekin$coefficients$random, checkNames=FALSE)
+    
+    seqClose(seqData)
+}
+
+test_famSKAT <- function(){
+    seqData <- .testObject()
+    grm <- .testGRM(seqData)
+    nullmod <- fitNullfamSKAT(sampleData(seqData), outcome="outcome", covars="sex", covMatList=grm)
+    
+    g <- altDosage(seqData)
+    g <- g[,colSums(is.na(g)) == 0]
+
+    res <- GENESIS:::.runFastSKATTest(nullmod, g, weight.beta=c(1,25), pval.method="saddlepoint", neig=10)
+
+    ## compare to regular SKAT
+    nullmod <- .testNullModel(seqData)
+    proj <- GENESIS:::.calculateProjection(nullmod, "SKAT", NULL)
+    scores <- as.vector(crossprod(g, proj$resid))
+    freq <- colMeans(g/2)
+    weights <- GENESIS:::.weightFunction(c(1,25))(freq)
+    res0 <- GENESIS:::.runSKATTest(scores, g, weights, rho=0, pval.method="kuonen", optimal=FALSE)
+    
+    ## agg <- list(data.frame(variant.id=as.integer(colnames(g)), allele.index=1))
+    ## nullmod <- .testNullModel(seqData)
+    ## assoc <- assocTestSeq(seqData, nullmod, agg, test="SKAT")
+
+    seqClose(seqData)
 }

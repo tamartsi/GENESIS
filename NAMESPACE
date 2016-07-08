@@ -27,7 +27,6 @@ import(SeqArray)
 importFrom(SeqVarTools, SeqVarData)
 importClassesFrom(SeqVarTools, SeqVarData)
 importMethodsFrom(SeqVarTools,
-                  alleleFrequency,
                   altDosage,
                   alleleDosage,
                   sampleData,
@@ -36,6 +35,7 @@ importMethodsFrom(SeqVarTools,
 export(assocTestMM,
        assocTestSeq,
        assocTestSeqWindow,
+       fitNullfamSKAT,
        fitNullMM,
        fitNullReg,
        king2mat,

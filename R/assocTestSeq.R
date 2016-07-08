@@ -48,44 +48,7 @@ assocTestSeq <- function(	seqData,
 
 	# set up main results matrix
 	nv <- c("n.site", "n.sample.alt")
-	if(test == "Burden"){
-		nv <- append(nv, "burden.skew")
-		if(burden.test == "Score"){		
-			nv <- append(nv, c("Score", "Var", "Score.stat", "Score.pval"))
-		}else if(burden.test == "Wald"){
-			nv <- append(nv, c("Est", "SE", "Wald.stat", "Wald.pval"))
-		}else if(burden.test == "Firth"){
-			nv <- append(nv, c("Est", "SE", "Firth.stat", "Firth.pval"))
-		}
-		if(verbose){
-			if(is.null(weight.user)){
-				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution")
-			}else{
-				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData")			
-			}
-		}	
-		
-	}else if(test == "SKAT"){
-		nv <- append(nv, c(paste("Q",rho,sep="_"), paste("pval",rho,sep="_"), paste("err",rho,sep="_")))
-		if(length(rho) == 1){			
-			if(verbose){
-				if(is.null(weight.user)){
-					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = ", rho)
-				}else{
-					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = ", rho)
-				}
-			}
-		}else{
-			nv <- append(nv, c("min.pval", "opt.rho", "pval_SKATO"))
-			if(verbose){
-				if(is.null(weight.user)){
-					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = (", paste(rho, collapse=", "), ")")
-				}else{
-					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = (", paste(rho, collapse=", "), ")")
-				}
-			}
-		}		
-	}
+        nv <- .outputColumns(nv, AF.range, weight.beta, weight.user, test, burden.test, rho, verbose)
 
 	# determine the number of variant blocks
 	nblocks <- length(aggVarList)
@@ -99,7 +62,9 @@ assocTestSeq <- function(	seqData,
 
 
 	# get residuals and sqrt of Projection matrix
-	proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        if (test %in% c("Burden", "SKAT")) {
+            proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        }
 
 	# keep track of time for rate reporting
 	startTime <- Sys.time()
@@ -303,44 +268,7 @@ assocTestSeqWindow <- function(	seqData,
 
 	# set up main results matrix
 	nv <- c("chr", "window.start", "window.stop", "n.site", "dup")
-	if(test == "Burden"){
-		nv <- append(nv, "burden.skew")
-		if(burden.test == "Score"){		
-			nv <- append(nv, c("Score", "Var", "Score.stat", "Score.pval"))
-		}else if(burden.test == "Wald"){
-			nv <- append(nv, c("Est", "SE", "Wald.stat", "Wald.pval"))
-		}else if(burden.test == "Firth"){
-			nv <- append(nv, c("Est", "SE", "Firth.stat", "Firth.pval"))
-		}
-		if(verbose){
-			if(is.null(weight.user)){
-				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution")
-			}else{
-				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData")			
-			}
-		}
-
-	}else if(test == "SKAT"){
-		nv <- append(nv, c(paste("Q",rho,sep="_"), paste("pval",rho,sep="_"), paste("err",rho,sep="_")))
-		if(length(rho) == 1){			
-			if(verbose){
-				if(is.null(weight.user)){
-					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = ", rho)
-				}else{
-					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = ", rho)
-				}
-			}
-		}else{
-			nv <- append(nv, c("min.pval", "opt.rho", "pval_SKATO"))
-			if(verbose){
-				if(is.null(weight.user)){
-					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = (", paste(rho, collapse=", "), ")")
-				}else{
-					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = (", paste(rho, collapse=", "), ")")
-				}
-			} 
-		}
-	}
+        nv <- .outputColumns(nv, AF.range, weight.beta, weight.user, test, burden.test, rho, verbose)
 	resMain <- matrix(NA, nrow = 0, ncol = length(nv), dimnames = list(NULL,nv))
 
 	# set up results for variants
@@ -349,7 +277,9 @@ assocTestSeqWindow <- function(	seqData,
 
 
 	# get residuals and sqrt of Projection matrix
-	proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        if (test %in% c("Burden", "SKAT")) {
+            proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        }
 	
 	# loop through chromosomes
 	for(chr in unique(variant.chr)){
@@ -597,7 +527,7 @@ assocTestSeqWindow <- function(	seqData,
 	param[["mixedmodel"]] <- mixedmodel
 	
 	# check that test is valid
-	if(!is.element(test,c("Burden","SKAT"))){ stop("test must be Burden or SKAT") }
+	if(!is.element(test,c("Burden","SKAT","fastSKAT"))){ stop("test must be Burden, SKAT, or fastSKAT") }
 	param[["test"]] <- test
 	if(test == "Burden"){
 		# check burden.test type
@@ -624,8 +554,56 @@ assocTestSeqWindow <- function(	seqData,
 		param[["rho"]] <- rho
 		param[["pval.method"]] <- pval.method
 	}
+        if(test == "fastSKAT"){
+                requireNamespace("bigQF")
+        }
 	
 	return(param)	
+}
+
+
+
+.outputColumns <- function(nv, AF.range, weight.beta, weight.user, test, burden.test, rho, verbose){
+	if(test == "Burden"){
+		nv <- append(nv, "burden.skew")
+		if(burden.test == "Score"){		
+			nv <- append(nv, c("Score", "Var", "Score.stat", "Score.pval"))
+		}else if(burden.test == "Wald"){
+			nv <- append(nv, c("Est", "SE", "Wald.stat", "Wald.pval"))
+		}else if(burden.test == "Firth"){
+			nv <- append(nv, c("Est", "SE", "Firth.stat", "Firth.pval"))
+		}
+		if(verbose){
+			if(is.null(weight.user)){
+				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution")
+			}else{
+				message("Performing ", burden.test, " Burden Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData")			
+			}
+		}	
+		
+	}else if(test == "SKAT"){
+		nv <- append(nv, c(paste("Q",rho,sep="_"), paste("pval",rho,sep="_"), paste("err",rho,sep="_")))
+		if(length(rho) == 1){			
+			if(verbose){
+				if(is.null(weight.user)){
+					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = ", rho)
+				}else{
+					message("Performing SKAT Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = ", rho)
+				}
+			}
+		}else{
+			nv <- append(nv, c("min.pval", "opt.rho", "pval_SKATO"))
+			if(verbose){
+				if(is.null(weight.user)){
+					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights from a Beta(", weight.beta[1], ",", weight.beta[2], ") distribution and rho = (", paste(rho, collapse=", "), ")")
+				}else{
+					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = (", paste(rho, collapse=", "), ")")
+				}
+			}
+		}		
+	}
+
+        return(nv)
 }
 
 
