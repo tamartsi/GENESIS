@@ -618,7 +618,7 @@ assocTestSeqWindow <- function(seqData,
 					message("Performing SKAT-O Tests for Variants with AF in [", AF.range[1], ",", AF.range[2], "] using weights specified by ", weight.user, " in the variantData slot of seqData and rho = (", paste(rho, collapse=", "), ")")
 				}
 			}
-		}		
+		}
 	}else if(test == "fastSKAT"){
 		nv <- append(nv, c(paste("Q",rho,sep="_"), paste("pval",rho,sep="_")))
 		if(verbose){
