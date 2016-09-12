@@ -66,6 +66,8 @@ assocTestSeq <- function(seqData,
 	# get residuals and sqrt of Projection matrix
         if (test %in% c("Burden", "SKAT")) {
             proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        } else if (test == "fastSKAT") {
+            proj <- .makeFastSKATTest(model = nullModObj, weight.beta = weight.beta)
         }
 
 	# keep track of time for rate reporting
@@ -174,7 +176,7 @@ assocTestSeq <- function(seqData,
 				testout <- .runSKATTest(scores = U, geno.adj = geno, weights = weights, rho = rho, pval.method = pval.method, optimal = TRUE)
 			}
 		}else if(test == "fastSKAT"){
-                       testout <- .runFastSKATTest(model = nullModObj, geno.adj = geno, weight.beta = weight.beta, pval.method = pval.method, neig = fastSKAT.neig)
+                       testout <- .runFastSKATTest(f = proj, geno.adj = geno, pval.method = pval.method, neig = fastSKAT.neig)
                 }
 
 		# update main results
@@ -285,6 +287,8 @@ assocTestSeqWindow <- function(seqData,
 	# get residuals and sqrt of Projection matrix
         if (test %in% c("Burden", "SKAT")) {
             proj <- .calculateProjection(nullModObj = nullModObj, test = test, burden.test = burden.test)
+        } else if (test == "fastSKAT") {
+            proj <- .makeFastSKATTest(model = nullModObj, weight.beta = weight.beta)
         }
 	
 	# loop through chromosomes
@@ -464,7 +468,7 @@ assocTestSeqWindow <- function(seqData,
 								testout <- .runSKATTest(scores = U, geno.adj = geno, weights = weights, rho = rho, pval.method = pval.method, optimal = TRUE)
 							}
 						}else if(test == "fastSKAT"){
-                                                        testout <- .runFastSKATTest(model = nullModObj, geno.adj = geno, weight.beta = weight.beta, pval.method = pval.method, neig = fastSKAT.neig)
+                                                        testout <- .runFastSKATTest(f = proj, geno.adj = geno, pval.method = pval.method, neig = fastSKAT.neig)
                                                 }
 
 					}else{

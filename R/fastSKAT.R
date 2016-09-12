@@ -34,8 +34,14 @@ fitNullfamSKAT <- function(scanData,
 }
 
 
-.runFastSKATTest <- function(model, geno.adj, weight.beta, pval.method, neig) {
-    f <- bigQF::famSKAT(geno.adj, model$lmekin, model$covMatList, weights=.weightFunction(weight.beta))
+.makeFastSKATTest <- function(model, weight.beta) {
+    # dummy genotypes - this function is only for getting the null model
+    geno.init <- matrix(0, nrow=length(model$scanID), ncol=1)
+    bigQF::famSKAT(geno.init, model$lmekin, model$covMatList, weights=.weightFunction(weight.beta))
+}
+
+.runFastSKATTest <- function(f, geno.adj, pval.method, neig) {
+    f <- update(f, geno.adj)
     Q <- f$Q()
     meth <- if (pval.method == "kuonen") "saddlepoint" else "integration"
     neig <- min(c(neig, dim(geno.adj)))
@@ -43,3 +49,4 @@ fitNullfamSKAT <- function(scanData,
     out <- c("Q_0"=Q, "pval_0"=p)
     return(out)
 }
+

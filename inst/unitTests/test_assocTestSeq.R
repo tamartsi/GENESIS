@@ -272,8 +272,14 @@ test_famSKAT <- function(){
     g <- altDosage(seqData)
     g <- g[,colSums(is.na(g)) == 0]
 
-    res <- GENESIS:::.runFastSKATTest(nullmod, g, weight.beta=c(1,25), pval.method="saddlepoint", neig=10)
+    ## without using update.famSKAT
+    f <- bigQF::famSKAT(g, nullmod$lmekin, nullmod$covMatList, weights= GENESIS:::.weightFunction(c(1,25)))
+    Q <- f$Q()
 
+    f <-  GENESIS:::.makeFastSKATTest(nullmod, weight.beta=c(1,25))
+    res <-  GENESIS:::.runFastSKATTest(f, g, pval.method="kuonen", neig=10)
+    checkEquals(Q, res["Q_0"], checkNames=FALSE)
+    
     ## compare to regular SKAT
     nullmod <- .testNullModel(seqData)
     proj <- GENESIS:::.calculateProjection(nullmod, "SKAT", NULL)
@@ -284,7 +290,7 @@ test_famSKAT <- function(){
     
     seqClose(seqData)
 }
-
+    
 test_fastSKAT <- function(){
     seqData <- .testObject()
     grm <- .testGRM(seqData)
