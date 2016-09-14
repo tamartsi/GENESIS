@@ -1,15 +1,12 @@
-admixMapMixedModel <- function(admixDataList,
-                               cholSigmaInv,
-                               outcome,
-                               covar.vec = NULL,
-                               scan.exclude = NULL,
-                               snpStart = NULL,
-                               snpEnd = NULL,
+admixMapMM <- function(admixDataList,
+                        nullMMobj,
+                        snp.include = NULL,
+                        chromosome = NULL,
                                #impute.local = TRUE,
-                               block.size = 5000,
+                               snp.block.size = 5000,
                                verbose = TRUE){
 
-  # if admixDataList is GenodtypeData (one file), convert to a list
+  # if admixDataList is GenotypeData (one file), convert to a list
   if(class(admixDataList) == "GenotypeData"){
     admixDataList <- list(admixDataList)
   }
@@ -22,41 +19,30 @@ admixMapMixedModel <- function(admixDataList,
     names(admixDataList) <- paste("Anc",1:v,sep="")
   }
 
-  # set snpStart and snpEnd
-  if(is.null(snpStart)){
-    snpStart <- 1
-  }
-  if(is.null(snpEnd)){
-    snpEnd <- nsnp(admixDataList[[1]])
-  }
-  
-  # get scanIDs
-  scanID <- getScanID(admixDataList[[1]])
+  # get scan.include
+  scan.include <- getScanIndex(data = admixDataList[[1]], nullMMobj$scanID)
 
+  # set SNPs to include
+  snp.include <- getSnpIndex(data = admixDataList[[1]], snp.include, chromosome)
+    
   # get chromosome information
-  chr <- getChromosome(admixDataList[[1]], index=snpStart:snpEnd)
+  chr <- getChromosome(admixDataList[[1]], index=snp.include$index)
 
   # check that items match in all elements of admixDataList
   if(v > 1){
+    scanID <- getScanID(admixDataList[[1]])
     for(i in 2:v){
       # scanIDs
       if(!all(scanID == getScanID(admixDataList[[i]]) )){
         stop("scanIDs do not match for all elements of admixDataList")
       }
       # chromosomes
-      if(!all(chr == getChromosome(admixDataList[[i]], index=snpStart:snpEnd) )){
+      if(!all(chr == getChromosome(admixDataList[[i]], index=snp.include$index) )){
         stop("Chromosomes do not match for all elements of admixDataList")
       }
     }
   }
 
-  # set which samples to keep
-  keep <- rep(TRUE, nscan(admixDataList[[1]]))
-  # samples excluded from entire analysis
-  if(!is.null(scan.exclude)){
-    keep <- keep & !(scanID %in% scan.exclude)
-  }
-  
   # Sex chromosome checks
   Xcode <- rep(NA,v); Ycode <- rep(NA,v)
   for(i in 1:v){
@@ -93,72 +79,16 @@ admixMapMixedModel <- function(admixDataList,
         stop("Sex values for the samples do not match for all elements of admixDataList (required for Y chr)")
       }
     }    
-    # only keep males
-    keep <- keep & (getSex(admixDataList[[1]]) == "M")
+    # check for males
+    if (!all(getSex(admixDataList[[1]], index=scan.include$index) == "M")){
+        stop("Y chromosome SNPs should be analyzed with only males")
+    }
   }  
-    
-  
-  # read in outcome and covariate data
-  if(verbose) message("Reading in Phenotype and Covariate Data...")
-  if(!is.null(covar.vec)){
-    cvnames <- unique(unlist(strsplit(covar.vec,"[*:]")))
-    # read in data
-    dat <- as.data.frame(getScanVariable(admixDataList[[1]], c(outcome,cvnames)))
-    # check for matching
-    if(v > 1){
-      for(i in 2:v){
-        if(!identical( dat, as.data.frame(getScanVariable(admixDataList[[i]], c(outcome,cvnames))) )){
-          stop("Outcome or covariate data does not match for all elements of admixDataList")
-        }
-      }
-    }
-    # identify samples with any missing data
-    keep <- keep & apply(dat,1,function(x){ all(!is.na(x)) })
-    # subset samples
-    dat <- as.data.frame(dat[keep,])
-    # outcome
-    Y <- dat[,outcome]
-    # create design matrix
-    model.formula <- as.formula(paste(paste(outcome,"~"), paste(covar.vec,collapse="+")))
-    W <- model.matrix(model.formula, data=dat)    
-    
-  }else{
-    # read in data
-    dat <- getScanVariable(admixDataList[[1]],outcome)
-    if(v > 1){
-      for(i in 2:v){
-        if(!identical( dat, getScanVariable(admixDataList[[i]], outcome) )){
-          stop("Outcome data does not match for all elements of admixDataList")
-        }
-      }
-    }
-    # identify samples with any missing data
-    keep <- keep & !is.na(dat)    
-    # outcome
-    Y <- dat[keep]
-    # design matrix
-    W <- matrix(1,nrow=length(Y),ncol=1)
-  }
-  k <- ncol(W)
-  scanID <- scanID[keep]
 
-  # which samples to remove from cholSigmaInv
-  if(!all(scanID %in% colnames(cholSigmaInv))){
-    stop("All of the included Samples must be in the cholSigmaInv matrix")
-  }
-  chol.idx <- which(!(colnames(cholSigmaInv) %in% scanID))
-  cholSigmaInv <- .subsetCholSigmaInv(cholSigmaInv, chol.idx)
   
+  if(verbose) message("Running analysis with ", scan.include$n, " Samples and ", snp.include$n, " SNPs")
 
-  # sample size, assuming no missing genotypes
-  n <- length(scanID)
-  if(verbose) message("Running analysis with ", n, " Samples")
   
-  # number of SNPs in the segment
-  nsnp.seg <- snpEnd - snpStart + 1
-  # determine number of SNP blocks
-  nblocks <- ceiling(nsnp.seg/block.size)
-
   # set up results matrix
   # add in frequency of each ancestry at the SNP
   nv <- c("snpID","chr","n")
@@ -170,38 +100,30 @@ admixMapMixedModel <- function(admixDataList,
   }else{
     nv <- append(nv, c("freq", "Est", "SE", "Stat", "pval"))
   }
-  res <- matrix(NA, nrow=nsnp.seg, ncol=length(nv), dimnames=list(NULL, nv))
+  res <- matrix(NA, nrow=snp.include$n, ncol=length(nv), dimnames=list(NULL, nv))
     
-  
-  # chromosome
-  res[,"chr"] <- chr
-  
+  # SNP blocks
+  snp.blocks <- getBlocks(snp.include$n, snp.block.size)
+
   # since we haven't done any loops here yet:
-  keep.previous <- rep(TRUE, n)
-  
+  keep.previous <- rep(TRUE, scan.include$n)
+
   if(verbose) message("Beginning Calculations...")
   # loop through blocks
-  for(b in 1:nblocks){
+  for(b in 1:snp.blocks$n){
     
     # keep track of time for rate reporting
     startTime <- Sys.time()
     
-    snp.start.pos <- snpStart + (b-1)*block.size
-    nsnp.block <- block.size
-    if(snp.start.pos + nsnp.block > snpEnd){
-      nsnp.block <- snpEnd - snp.start.pos + 1
-    }
-    snp.end.pos <- snp.start.pos + nsnp.block - 1
-    
-    bidx <- ((b-1)*block.size+1):((b-1)*block.size+nsnp.block)
-    
+    # set index for this block of SNPs
+    bidx <- snp.blocks$start[b]:snp.blocks$end[b]   
+
     # get local ancestry for the block
-    local <- array(NA, dim=c(n,nsnp.block,v)) # indices: scan, snp, ancestry
+    local <- array(NA, dim=c(scan.include$n,length(bidx),v)) # indices: scan, snp, ancestry
     for(i in 1:v){
-      tmplocal <- getGenotype(admixDataList[[i]], snp=c(snp.start.pos, nsnp.block), scan=c(1,-1), transpose=TRUE)
-      # subset
-      tmplocal <- as.matrix(tmplocal)[keep, , drop=F]
+      tmplocal <-  prepareGenotype(genoData = admixDataList[[i]], snp.read.idx = snp.include$index[bidx], scan.read.idx = scan.include$index, impute.geno = FALSE)
       # put into the array
+      keep.scanID <- rownames(tmplocal) # samples with missing values were removed
       local[,,i] <- tmplocal; rm(tmplocal)
     }
 
@@ -212,8 +134,8 @@ admixMapMixedModel <- function(admixDataList,
       # which are on X chr
       Xidx <- chr[bidx] == XchromCode(admixDataList[[1]])
       # males
-      m <- (getSex(admixDataList[[1]]) == "M")[keep]
-      f <- (getSex(admixDataList[[1]]) == "F")[keep]
+      m <- (getSex(admixDataList[[1]]) == "M")[scan.include$index]
+      f <- (getSex(admixDataList[[1]]) == "F")[scan.include$index]
       # calculate allele freq for X
       freq[Xidx,] <- (0.5*colSums(local[m,Xidx,], dims=1, na.rm=T) + colSums(local[f,Xidx,], dims=1, na.rm=T)) / (colSums(!is.na(local[m,Xidx,]), dims=1) + 2*colSums(!is.na(local[f,Xidx,]), dims=1) )
     }
@@ -239,17 +161,7 @@ admixMapMixedModel <- function(admixDataList,
     # this is imputing as population average.  would it be better to impute to individual's global ancestry?
     ### no missing data currently - worry about this later ###
     
-    # check for missingness
-    check <- rowSums(is.na(local), dims=1)    
-    if (!all(check %in% c(0, v*nsnp.block))) {
-      stop("sporadic missing in block size > 1")
-    }
-    
-    keep.geno <- check == 0
-    
-    # get rid of missing for this block
-    # can probably put this in an if statement
-    local <- as.array(local)[keep.geno, , , drop=F]
+    keep.geno <- scan.include$value %in% keep.scanID
     
     # sample size
     n <- sum(keep.geno)
@@ -258,17 +170,19 @@ admixMapMixedModel <- function(admixDataList,
     if (b == 1 | !all(keep.previous == keep.geno)){
       # calculate matrices
       
-      if (b > 1) warning("recalculating matrices!")
-      #if(verbose) message("Pre-Computing some Matrices for Analysis...")      
+      if (b > 1) warning("Sample Set Changed: Re-Calculating Matrices!")
+      #if(verbose) message("Pre-Computing some Matrices for Analysis...")
       
-      # subsetting
-      W.block <- W[keep.geno, , drop=F]
-      Y.block <- Y[keep.geno]
+      # covariate matrix
+      W.block <- nullMMobj$model.matrix[keep.geno, , drop = FALSE]
+      k <- ncol(W.block)
+      # outcome
+      Y.block <- nullMMobj$workingY[keep.geno]
       
       # here we have to subset the matrix, not the inverse
       # this is a fancy way of getting the inverse of the subset without having to get the original matrix
-      chol.idx <- which(!(colnames(cholSigmaInv) %in% scanID[keep.geno]))
-      C.block <- .subsetCholSigmaInv(cholSigmaInv, chol.idx)
+      chol.idx <- which(!(colnames(nullMMobj$cholSigmaInv) %in% keep.scanID))
+      C.block <- subsetCholSigmaInv(nullMMobj$cholSigmaInv, chol.idx)
       
       # W: covariate matrix
       # C: cholesky decomposition of sigma inverse
@@ -338,28 +252,17 @@ admixMapMixedModel <- function(admixDataList,
 
     keep.previous <- keep.geno
 
-    if(verbose) message(paste("Block", b, "of", nblocks, "Completed -", rate))
+    if(verbose) message(paste("Block", b, "of", snp.blocks$n, "Completed -", rate))
   } # end block loop
   
   # results data frame
   res <- as.data.frame(res)
   
   # add in snpID
-  res$snpID <- getSnpID(admixDataList[[1]], snpStart:snpEnd)
+  res$snpID <- snp.include$value
+    
+  # chromosome
+  res[,"chr"] <- chr
   
   return(res)
-}
-
-
-.subsetCholSigmaInv <- function(cholSigmaInv, chol.idx) {
-  if(length(chol.idx) > 0){
-    # subset cholSigmaInv
-    SigmaInv <- tcrossprod(cholSigmaInv)
-    for(i in sort(chol.idx, decreasing=TRUE)){
-      SigmaInv <- SigmaInv[-i,-i] - tcrossprod(SigmaInv[-i,i])/SigmaInv[i,i]
-    }
-    cholSigmaInv <- t(chol(SigmaInv))
-  }
-  
-  cholSigmaInv
 }
